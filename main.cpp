@@ -11,7 +11,9 @@ static bool isResumed = false;
 
 bool SuspendProtection(HANDLE hProcess, DWORD pid, uintptr_t protAddr)
 {
-    uintptr_t address;
+    if (pid == 0 || protAddr == 0)
+        return false;
+
     THREADENTRY32 te32{};
     HANDLE hThreadSnap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
     te32.dwSize = sizeof(te32);
@@ -22,15 +24,18 @@ bool SuspendProtection(HANDLE hProcess, DWORD pid, uintptr_t protAddr)
             PVOID threadInfo;
             ULONG retLen;
             auto NtQueryInformationThread = (_NtQueryInformationThread)GetLibraryProcAddress("ntdll.dll", "NtQueryInformationThread");
+            if (NtQueryInformationThread == nullptr)
+                return false;
+
             HANDLE hThread = OpenThread(THREAD_ALL_ACCESS, 0, te32.th32ThreadID);
             NTSTATUS ntqiRet = NtQueryInformationThread(hThread, 9, &threadInfo, sizeof(PVOID), &retLen);
 
             MEMORY_BASIC_INFORMATION mbi;
             if (VirtualQueryEx(hProcess, (LPCVOID)threadInfo, &mbi, sizeof(mbi)))
             {
-                address = reinterpret_cast<uintptr_t>(mbi.AllocationBase);
+                auto baseAddress = reinterpret_cast<uintptr_t>(mbi.AllocationBase);
                 // LMAO very scuffed but it works 
-                if (address == protAddr)
+                if (baseAddress == protAddr)
                 {
                     SuspendThread(hThread);
                     CloseHandle(hThread);
@@ -74,14 +79,14 @@ int main()
         if (!LdrInitializeThunk)
         {
             printf("LdrInitializeThunk not found!\n");
-            break;
+            return 0;
         }
 
         auto NtQueryAttributesFile = GetLibraryProcAddress("ntdll.dll", "NtQueryAttributesFile");
         if (!NtQueryAttributesFile)
         {
             printf("NtQueryAttributesFile not found!\n");
-            break;
+            return 0;
         }
 
         if (hwnd)
@@ -100,7 +105,7 @@ int main()
                 if (!QRSL_es)
                 {
                     printf("QRSL_es.dll not found!\n");
-                    break;
+                    return 0;
                 }
 
                 if (!isResumed)

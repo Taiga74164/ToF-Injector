@@ -20,7 +20,6 @@ void Inject(HANDLE hProcess, std::string dllname)
     LPVOID pPath = VirtualAllocEx(hProcess, nullptr, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if (!pPath)
     {
-        DWORD code = GetLastError();
         printf("VirtualAllocEx failed\n");
         return;
     }
