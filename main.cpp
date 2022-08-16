@@ -6,8 +6,6 @@
 #endif
 
 static bool isInject = false;
-static bool isProcSuspended = false;
-static bool isResumed = false;
 
 bool SuspendProtection(HANDLE hProcess, DWORD pid, uintptr_t protAddr)
 {
@@ -108,24 +106,7 @@ int main()
                     return 0;
                 }
 
-                if (!isResumed)
-                {
-                    if (!isProcSuspended)
-                    {
-                        SuspendProcess(dwProcID);
-                        printf("Process suspended.\n");
-                        Bedge(100);
-                        isProcSuspended = true;
-                    }
-
-                    if (SuspendProtection(handle, dwProcID, QRSL_es))
-                    {
-                        ResumeProcess(dwProcID);
-                        printf("Process resumed.\n");
-                        isResumed = true;
-                    }
-                }
-                if (isResumed)
+                if (SuspendProtection(handle, dwProcID, QRSL_es))
                 {
                     if (!isInject)
                     {
@@ -145,7 +126,8 @@ int main()
                     if (GetAsyncKeyState(VK_F5) & 1)
                         Inject(handle, DLLName5.c_str());
                 }
-                GetExitCodeProcess(handle, &ExitCode);
+                // Commented so you don't have to restart injector everytime the game closes
+                //GetExitCodeProcess(handle, &ExitCode);
             }
         }
         Bedge(20);
