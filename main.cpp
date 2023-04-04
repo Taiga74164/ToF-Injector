@@ -35,7 +35,6 @@ bool SuspendProtection(HANDLE hProcess, DWORD pid, uintptr_t protAddr)
                 // LMAO very scuffed but it works 
                 if (baseAddress == protAddr)
                 {
-                    ResumeProcess(pid);
                     SuspendThread(hThread);
                     CloseHandle(hThread);
                     return true;
@@ -51,17 +50,12 @@ int main()
 {
     SetConsoleTitleA("Taiga74164");
     const auto config = LoadConfig();
-    
-    auto autoDll1 = config.autoDllPath1;
-    auto autoDll2 = config.autoDllPath2;
-    auto manualDll1 = config.manualDllPath1;
-    auto manualDll2 = config.manualDllPath2;
 
     printf("Waiting for QRSL.exe\n");
     printf("=========================================\n");
     //print the Hotkeys for Manual Inject
-    printf("[F2]  Manual Inject: %s\n", manualDll1.c_str());
-    printf("[F3]  Manual Inject: %s\n", manualDll2.c_str());
+    printf("[F2]  Manual Inject: %s\n", config.manualDllPath1.c_str());
+    printf("[F3]  Manual Inject: %s\n", config.manualDllPath2.c_str());
     printf("=========================================\n");
 
     bool isInjected = false;
@@ -75,46 +69,42 @@ int main()
             Bedge(1000);
         }
         
-        if (hwnd)
+        DWORD dwProcID;
+        while (!(GetWindowThreadProcessId(hwnd, &dwProcID)) || dwProcID == NULL)
         {
-            DWORD dwProcID;
-            while (!(GetWindowThreadProcessId(hwnd, &dwProcID)) || dwProcID == NULL)
-            {
-                printf("Unable to get process id!\n");
-                Bedge(1000);
-            }
-
-            const auto handle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, dwProcID);
-
-            // Restore bytes of these hooked function
-            Patch(GetLibraryProcAddress("ntdll.dll", "LdrInitializeThunk"), "\x40\x53\x48\x83\xEC\x20", 6, handle);
-            Patch(GetLibraryProcAddress("ntdll.dll", "NtQueryAttributesFile"), "\x4C\x8B\xD1\xB8\x3D\x00\x00\x00", 8, handle);
-
-            const auto QRSL_es = GetModuleAddress("QRSL_es.dll", dwProcID);
-            if (!QRSL_es)
-            {
-                printf("QRSL_es.dll not found!\n");
-                return 0;
-            }
-
-            SuspendProcess(dwProcID);
-            if (SuspendProtection(handle, dwProcID, QRSL_es))
-            {
-                printf("2\n");
-                if (!isInjected)
-                {
-                    Inject(handle, autoDll1); // Auto1 field
-                    Inject(handle, autoDll2); // Auto2 field
-                    isInjected = true;
-                }
-
-                if (GetAsyncKeyState(VK_F2) & 1)
-                    Inject(handle, manualDll1);
-
-                if (GetAsyncKeyState(VK_F3) & 1)
-                    Inject(handle, manualDll2);
-            }
+            printf("Unable to get process id!\n");
+            Bedge(1000);
         }
+
+        const auto handle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, dwProcID);
+
+        // Restore bytes of these hooked function
+        Patch(GetLibraryProcAddress("ntdll.dll", "LdrInitializeThunk"), "\x40\x53\x48\x83\xEC\x20", 6, handle);
+        Patch(GetLibraryProcAddress("ntdll.dll", "NtQueryAttributesFile"), "\x4C\x8B\xD1\xB8\x3D\x00\x00\x00", 8, handle);
+
+        const auto QRSL_es = GetModuleAddress("QRSL_es.dll", dwProcID);
+        if (!QRSL_es)
+        {
+            printf("QRSL_es.dll not found!\n");
+            return 0;
+        }
+
+        if (SuspendProtection(handle, dwProcID, QRSL_es))
+        {
+            if (!isInjected)
+            {
+                Inject(handle, config.autoDllPath1); // Auto1 field
+                Inject(handle, config.autoDllPath2); // Auto2 field
+                isInjected = true;
+            }
+
+            if (GetAsyncKeyState(VK_F2) & 1)
+                Inject(handle, config.manualDllPath1);
+
+            if (GetAsyncKeyState(VK_F3) & 1)
+                Inject(handle, config.manualDllPath2);
+        }
+
         Bedge(20);
     }
 
