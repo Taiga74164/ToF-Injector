@@ -33,4 +33,5 @@
 
 .vs/
 x64/
-Build/
+bin/
+.idea/

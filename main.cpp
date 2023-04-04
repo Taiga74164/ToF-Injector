@@ -5,7 +5,7 @@
 #include "ManualMap.h"
 #endif
 
-static bool isInject = false;
+#define ThreadQuerySetWin32StartAddress 9
 
 bool SuspendProtection(HANDLE hProcess, DWORD pid, uintptr_t protAddr)
 {
@@ -26,7 +26,7 @@ bool SuspendProtection(HANDLE hProcess, DWORD pid, uintptr_t protAddr)
                 return false;
 
             HANDLE hThread = OpenThread(THREAD_ALL_ACCESS, 0, te32.th32ThreadID);
-            NTSTATUS ntqiRet = NtQueryInformationThread(hThread, 9, &threadInfo, sizeof(PVOID), &retLen);
+            NTSTATUS ntqiRet = NtQueryInformationThread(hThread, ThreadQuerySetWin32StartAddress, &threadInfo, sizeof(PVOID), &retLen);
 
             MEMORY_BASIC_INFORMATION mbi;
             if (VirtualQueryEx(hProcess, (LPCVOID)threadInfo, &mbi, sizeof(mbi)))
@@ -35,6 +35,7 @@ bool SuspendProtection(HANDLE hProcess, DWORD pid, uintptr_t protAddr)
                 // LMAO very scuffed but it works 
                 if (baseAddress == protAddr)
                 {
+                    ResumeProcess(pid);
                     SuspendThread(hThread);
                     CloseHandle(hThread);
                     return true;
@@ -49,85 +50,69 @@ bool SuspendProtection(HANDLE hProcess, DWORD pid, uintptr_t protAddr)
 int main()
 {
     SetConsoleTitleA("Taiga74164");
-    LoadConfig();
-
-    std::string DLLName1 = DllPath1.substr(DllPath1.find_last_of("\\") + 1);
-    std::string DLLName2 = DllPath2.substr(DllPath2.find_last_of("\\") + 1);
-    std::string DLLName3 = DllPath3.substr(DllPath3.find_last_of("\\") + 1);
-    std::string DLLName4 = DllPath4.substr(DllPath4.find_last_of("\\") + 1);
-    std::string DLLName5 = DllPath5.substr(DllPath5.find_last_of("\\") + 1);
+    const auto config = LoadConfig();
+    
+    auto autoDll1 = config.autoDllPath1;
+    auto autoDll2 = config.autoDllPath2;
+    auto manualDll1 = config.manualDllPath1;
+    auto manualDll2 = config.manualDllPath2;
 
     printf("Waiting for QRSL.exe\n");
     printf("=========================================\n");
     //print the Hotkeys for Manual Inject
-    printf("[F2]  Manual Inject: %s\n", DLLName2.c_str());
-    printf("[F3]  Manual Inject: %s\n", DLLName3.c_str());
-    printf("[F4]  Manual Inject: %s\n", DLLName4.c_str());
-    printf("[F5]  Manual Inject: %s\n", DLLName5.c_str());
+    printf("[F2]  Manual Inject: %s\n", manualDll1.c_str());
+    printf("[F3]  Manual Inject: %s\n", manualDll2.c_str());
     printf("=========================================\n");
 
-    DWORD ExitCode = STILL_ACTIVE;
-    while (ExitCode == STILL_ACTIVE)
+    bool isInjected = false;
+    while (true)
     {
         HWND hwnd = nullptr;
         while (!(hwnd = FindWindowA("UnrealWindow", nullptr)))
-            Bedge(100);
-
-        auto LdrInitializeThunk = GetLibraryProcAddress("ntdll.dll", "LdrInitializeThunk");
-        if (!LdrInitializeThunk)
         {
-            printf("LdrInitializeThunk not found!\n");
-            return 0;
+            printf("Game not found!\n");
+            isInjected = false;
+            Bedge(1000);
         }
-
-        auto NtQueryAttributesFile = GetLibraryProcAddress("ntdll.dll", "NtQueryAttributesFile");
-        if (!NtQueryAttributesFile)
-        {
-            printf("NtQueryAttributesFile not found!\n");
-            return 0;
-        }
-
+        
         if (hwnd)
         {
             DWORD dwProcID;
-            GetWindowThreadProcessId(hwnd, &dwProcID);
-            if (dwProcID != NULL)
+            while (!(GetWindowThreadProcessId(hwnd, &dwProcID)) || dwProcID == NULL)
             {
-                HANDLE handle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, dwProcID);
+                printf("Unable to get process id!\n");
+                Bedge(1000);
+            }
 
-                // Restore bytes of these hooked function
-                Patch(LdrInitializeThunk, "\x40\x53\x48\x83\xEC\x20", 6, handle);
-                Patch(NtQueryAttributesFile, "\x4C\x8B\xD1\xB8\x3D\x00\x00\x00", 8, handle);
+            const auto handle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, dwProcID);
 
-                auto QRSL_es = GetModuleAddress("QRSL_es.dll", dwProcID);
-                if (!QRSL_es)
+            // Restore bytes of these hooked function
+            Patch(GetLibraryProcAddress("ntdll.dll", "LdrInitializeThunk"), "\x40\x53\x48\x83\xEC\x20", 6, handle);
+            Patch(GetLibraryProcAddress("ntdll.dll", "NtQueryAttributesFile"), "\x4C\x8B\xD1\xB8\x3D\x00\x00\x00", 8, handle);
+
+            const auto QRSL_es = GetModuleAddress("QRSL_es.dll", dwProcID);
+            if (!QRSL_es)
+            {
+                printf("QRSL_es.dll not found!\n");
+                return 0;
+            }
+
+            SuspendProcess(dwProcID);
+            if (SuspendProtection(handle, dwProcID, QRSL_es))
+            {
+                printf("2\n");
+                if (!isInjected)
                 {
-                    printf("QRSL_es.dll not found!\n");
-                    return 0;
+                    Inject(handle, autoDll1); // Auto1 field
+                    Inject(handle, autoDll2); // Auto2 field
+                    isInjected = true;
                 }
 
-                if (SuspendProtection(handle, dwProcID, QRSL_es))
-                {
-                    if (!isInject)
-                    {
-                        Inject(handle, DLLName1.c_str()); // Auto1 field
-                        isInject = true;
-                    }
+                if (GetAsyncKeyState(VK_F2) & 1)
+                    Inject(handle, manualDll1);
 
-                    if (GetAsyncKeyState(VK_F2) & 1)
-                        Inject(handle, DLLName2.c_str());
-
-                    if (GetAsyncKeyState(VK_F3) & 1)
-                        Inject(handle, DLLName3.c_str());
-
-                    if (GetAsyncKeyState(VK_F4) & 1)
-                        Inject(handle, DLLName4.c_str());
-
-                    if (GetAsyncKeyState(VK_F5) & 1)
-                        Inject(handle, DLLName5.c_str());
-                }
-                // Commented so you don't have to restart injector everytime the game closes
-                //GetExitCodeProcess(handle, &ExitCode);
+                if (GetAsyncKeyState(VK_F3) & 1)
+                    Inject(handle, manualDll2);
             }
         }
         Bedge(20);

@@ -1,0 +1,3 @@
+[submodule "vendors/inih"]
+	path = vendors/inih
+	url = https://github.com/benhoyt/inih

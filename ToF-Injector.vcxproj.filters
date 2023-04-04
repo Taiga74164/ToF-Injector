@@ -12,9 +12,6 @@
     <ClInclude Include="Utils\Config.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Utils\IniReader.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Utils\LoadLibrary.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -22,6 +19,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Utils\ManualMap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vendors\inih\cpp\INIReader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vendors\inih\ini.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -36,6 +39,15 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Utils\Utils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="vendors\inih\cpp\INIReader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="utils\Config.cpp">
+      <Filter>Header Files</Filter>
+    </ClCompile>
+    <ClCompile Include="vendors\inih\ini.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
